@@ -282,6 +282,7 @@ export default function GamePage() {
     <div
       className="fixed inset-0 flex flex-col overflow-hidden"
       style={{
+        perspective: "1200px",
         background: `
           repeating-linear-gradient(
             90deg,
@@ -348,7 +349,13 @@ export default function GamePage() {
         </div>
 
         {/* Game Board */}
-        <div className="w-full max-w-[900px] h-full max-h-[700px]">
+        <div
+          className="w-full max-w-[900px] h-full max-h-[700px]"
+          style={{
+            transform: "rotateX(30deg)",
+            transformStyle: "preserve-3d",
+          }}
+        >
           <HexBoard
             hexes={game.board.hexes}
             vertices={game.board.vertices}
