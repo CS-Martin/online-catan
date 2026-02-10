@@ -126,6 +126,49 @@ const PLAYER_COLORS: Record<
 const ROW_OFFSETS = [1, 0.5, 0, 0.5, 1];
 
 /**
+ * Water hex positions surrounding the land board.
+ * Uses the same (row, col) + offset coordinate system as land hexes,
+ * but extends one ring outward.
+ */
+const WATER_HEX_OFFSETS: Record<number, number> = {
+  [-1]: 0.5,
+  0: 1,
+  1: 0.5,
+  2: 0,
+  3: 0.5,
+  4: 1,
+  5: 0.5,
+};
+
+const WATER_HEXES: { row: number; col: number }[] = [
+  // Top row (above row 0, which has 3 hexes offset by 1)
+  { row: -1, col: 0 },
+  { row: -1, col: 1 },
+  { row: -1, col: 2 },
+  { row: -1, col: 3 },
+  // Left and right of row 0 (3 hexes, cols 0-2)
+  { row: 0, col: -1 },
+  { row: 0, col: 3 },
+  // Left and right of row 1 (4 hexes, cols 0-3)
+  { row: 1, col: -1 },
+  { row: 1, col: 4 },
+  // Left and right of row 2 (5 hexes, cols 0-4)
+  { row: 2, col: -1 },
+  { row: 2, col: 5 },
+  // Left and right of row 3 (4 hexes, cols 0-3)
+  { row: 3, col: -1 },
+  { row: 3, col: 4 },
+  // Left and right of row 4 (3 hexes, cols 0-2)
+  { row: 4, col: -1 },
+  { row: 4, col: 3 },
+  // Bottom row (below row 4, which has 3 hexes offset by 1)
+  { row: 5, col: 0 },
+  { row: 5, col: 1 },
+  { row: 5, col: 2 },
+  { row: 5, col: 3 },
+];
+
+/**
  * Number token probability dots
  */
 const PROBABILITY_DOTS: Record<number, number> = {
@@ -150,6 +193,20 @@ function getHexCenter(hex: Hex, hexSize: number): { x: number; y: number } {
   return {
     x: (hex.col + offset) * horizontalSpacing,
     y: hex.row * verticalSpacing,
+  };
+}
+
+function getWaterHexCenter(
+  row: number,
+  col: number,
+  hexSize: number,
+): { x: number; y: number } {
+  const offset = WATER_HEX_OFFSETS[row] ?? 0;
+  const horizontalSpacing = hexSize * Math.sqrt(3);
+  const verticalSpacing = hexSize * 1.5;
+  return {
+    x: (col + offset) * horizontalSpacing,
+    y: row * verticalSpacing,
   };
 }
 
@@ -207,6 +264,17 @@ export function HexBoard({
     [hexes],
   );
 
+  // Pre-compute water hex centers
+  const waterHexCenters = useMemo(
+    () =>
+      WATER_HEXES.map((wh) => ({
+        row: wh.row,
+        col: wh.col,
+        ...getWaterHexCenter(wh.row, wh.col, hexSize),
+      })),
+    [],
+  );
+
   // Pre-compute vertex positions by replicating the board generation algorithm.
   // Board generation iterates hexes in id-order, computes 6 corners per hex,
   // and deduplicates by rounded position key — assigning vertex IDs sequentially.
@@ -236,18 +304,24 @@ export function HexBoard({
     return vertexPosById;
   }, [hexCenters]);
 
-  // SVG viewBox
+  // SVG viewBox (includes water hexes)
   const viewBox = useMemo(() => {
     if (hexCenters.length === 0) return "0 0 500 500";
-    const xs = hexCenters.map((h) => h.x);
-    const ys = hexCenters.map((h) => h.y);
-    const padding = hexSize * 2;
-    const minX = Math.min(...xs) - padding;
-    const maxX = Math.max(...xs) + padding;
-    const minY = Math.min(...ys) - padding;
-    const maxY = Math.max(...ys) + padding;
+    const allXs = [
+      ...hexCenters.map((h) => h.x),
+      ...waterHexCenters.map((w) => w.x),
+    ];
+    const allYs = [
+      ...hexCenters.map((h) => h.y),
+      ...waterHexCenters.map((w) => w.y),
+    ];
+    const padding = hexSize * 1.5;
+    const minX = Math.min(...allXs) - padding;
+    const maxX = Math.max(...allXs) + padding;
+    const minY = Math.min(...allYs) - padding;
+    const maxY = Math.max(...allYs) + padding;
     return `${minX} ${minY} ${maxX - minX} ${maxY - minY}`;
-  }, [hexCenters]);
+  }, [hexCenters, waterHexCenters]);
 
   // Board center for ocean background
   const boardCenter = useMemo(() => {
@@ -279,6 +353,12 @@ export function HexBoard({
             <stop offset="60%" stopColor="#1e40af" stopOpacity={0.5} />
             <stop offset="100%" stopColor="#1e3a8a" stopOpacity={0.7} />
           </radialGradient>
+
+          {/* Water hex gradient */}
+          <linearGradient id="grad-water" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#1d4ed8" />
+          </linearGradient>
 
           {/* Resource gradients */}
           {Object.entries(RESOURCE_STYLES).map(([key, style]) => (
@@ -333,29 +413,52 @@ export function HexBoard({
           </filter>
         </defs>
 
-        {/* Ocean background ellipse */}
-        <ellipse
-          cx={boardCenter.x}
-          cy={boardCenter.y}
-          rx={hexSize * 6.5}
-          ry={hexSize * 5.5}
-          fill="url(#oceanGradient)"
-        />
-
-        {/* Ocean wave rings */}
-        {[5.8, 6.2, 6.6].map((r, i) => (
-          <ellipse
-            key={i}
-            cx={boardCenter.x}
-            cy={boardCenter.y}
-            rx={hexSize * r}
-            ry={hexSize * (r - 1)}
-            fill="none"
-            stroke="#3b82f6"
-            strokeWidth={0.5}
-            opacity={0.15 - i * 0.03}
-          />
-        ))}
+        {/* ─── Water Hexes ─── */}
+        {waterHexCenters.map(({ row, col, x, y }, index) => {
+          const corners = getHexCorners(x, y, hexSize);
+          const innerCorners = getHexCorners(x, y, hexSize * 0.92);
+          return (
+            <motion.g
+              key={`water-${row}-${col}`}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{
+                delay: index * 0.02,
+                type: "spring",
+                stiffness: 300,
+                damping: 25,
+              }}
+            >
+              {/* Outer hex */}
+              <polygon
+                points={cornersToPoints(corners)}
+                fill="url(#grad-water)"
+                stroke="#1e40af"
+                strokeWidth={2}
+                opacity={0.7}
+              />
+              {/* Inner hex border */}
+              <polygon
+                points={cornersToPoints(innerCorners)}
+                fill="none"
+                stroke="#60a5fa"
+                strokeWidth={0.6}
+                opacity={0.2}
+              />
+              {/* Wave icon */}
+              <text
+                x={x}
+                y={y + 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={16}
+                opacity={0.3}
+              >
+                🌊
+              </text>
+            </motion.g>
+          );
+        })}
 
         {/* ─── Hex Tiles ─── */}
         {hexCenters.map(({ hex, x, y }, index) => {
