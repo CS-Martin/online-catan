@@ -680,9 +680,18 @@ export function HexBoard({
           isSetupPhase) &&
           vertices
             .filter((v) => {
-              if (buildMode === "settlement") return !v.building;
+              if (buildMode === "settlement" || isSetupPhase) {
+                // Must be empty
+                if (v.building) return false;
+                // Distance rule: no adjacent vertex can have a building
+                for (const adjId of v.adjacentVertices) {
+                  const adj = vertices.find((u) => u.id === adjId);
+                  if (adj && adj.building) return false;
+                }
+                return true;
+              }
               if (buildMode === "city") return v.building === "settlement";
-              // During setup or when vertex is selected, only show empty vertices
+              // When vertex is selected (edge selection step), only show empty vertices
               return !v.building;
             })
             .map((vertex) => {

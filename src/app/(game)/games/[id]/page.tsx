@@ -15,6 +15,7 @@ import { HexBoard } from "@/components/game/hex-board";
 import { PlayerPanelsBar } from "@/components/game/player-panel";
 import { ResourceBar } from "@/components/game/resource-bar";
 import { GameActions } from "@/components/game/game-actions";
+import { GameLogger } from "@/components/game/game-logger";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -363,6 +364,16 @@ export default function GamePage() {
           </div>
         )}
       </div>
+
+      {/* Game Logger - shows as draggable on desktop, sidebar on mobile */}
+      <GameLogger
+        gameId={game._id}
+        players={(gamePlayers || []).map((p) => ({
+          playerIndex: p.playerIndex,
+          displayName: p.displayName,
+          color: p.color,
+        }))}
+      />
     </div>
   );
 }

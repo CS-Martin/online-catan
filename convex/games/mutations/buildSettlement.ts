@@ -74,15 +74,19 @@ export const buildSettlement = mutation({
         };
 
     // Update board
-    const newVertices = game.board.vertices.map((v) => {
-      if (v.id !== args.vertexId) return v;
-      return {
-        ...v,
-        building: "settlement" as const,
-        ownerId: args.playerIndex,
-      };
-    });
-    const newBoard = { ...game.board, vertices: newVertices };
+    const newVertices = game.board.vertices.map((v) =>
+      v.id !== args.vertexId
+        ? v
+        : {
+            ...v,
+            building: "settlement" as const,
+            ownerId: args.playerIndex as number | undefined,
+          },
+    );
+    const newBoard = {
+      ...game.board,
+      vertices: newVertices as typeof game.board.vertices,
+    };
 
     // Update game state
     await ctx.db.patch(args.gameId, { board: newBoard });

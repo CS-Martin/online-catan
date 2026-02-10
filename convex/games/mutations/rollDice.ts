@@ -76,6 +76,19 @@ async function distributeResources(
   // Distribute resources to players with buildings on producing hexes
   for (const player of players) {
     let newResources = { ...player.resources };
+    const gainedResources: {
+      brick: number;
+      lumber: number;
+      ore: number;
+      grain: number;
+      wool: number;
+    } = {
+      brick: 0,
+      lumber: 0,
+      ore: 0,
+      grain: 0,
+      wool: 0,
+    };
 
     // Check each vertex for player's settlements/cities
     for (const vertex of game.board.vertices) {
@@ -87,6 +100,14 @@ async function distributeResources(
             const multiplier = vertex.building === "city" ? 2 : 1;
             const resource = hex.resource as keyof typeof newResources;
             newResources[resource] += multiplier;
+
+            // Track only what was gained
+            if (resource === "brick") gainedResources.brick += multiplier;
+            else if (resource === "lumber")
+              gainedResources.lumber += multiplier;
+            else if (resource === "ore") gainedResources.ore += multiplier;
+            else if (resource === "grain") gainedResources.grain += multiplier;
+            else if (resource === "wool") gainedResources.wool += multiplier;
           }
         }
       }
@@ -96,14 +117,14 @@ async function distributeResources(
     if (JSON.stringify(newResources) !== JSON.stringify(player.resources)) {
       await ctx.db.patch(player._id, { resources: newResources });
 
-      // Log resource gain
+      // Log only the resources gained, not total resources
       await ctx.db.insert("gameLogs", {
         gameId,
         turnNumber: game.turnNumber,
         playerIndex: player.playerIndex,
         action: "gain_resources",
-        details: { resources: newResources },
-        timestamp: Date.now(),
+        details: { resources: gainedResources },
+        timestamp: Date.now() + 1, // Ensure this comes after the dice roll
       });
     }
   }

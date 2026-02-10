@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as gameLogs_api from "../gameLogs/api.js";
 import type * as gameLogs_mutations_addLogEntry from "../gameLogs/mutations/addLogEntry.js";
 import type * as gameLogs_mutations_index from "../gameLogs/mutations/index.js";
 import type * as gameLogs_queries_getGameLogs from "../gameLogs/queries/getGameLogs.js";
@@ -86,6 +87,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "gameLogs/api": typeof gameLogs_api;
   "gameLogs/mutations/addLogEntry": typeof gameLogs_mutations_addLogEntry;
   "gameLogs/mutations/index": typeof gameLogs_mutations_index;
   "gameLogs/queries/getGameLogs": typeof gameLogs_queries_getGameLogs;

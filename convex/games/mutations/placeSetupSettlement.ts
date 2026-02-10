@@ -49,7 +49,9 @@ export const placeSetupSettlement = mutation({
 
     // Validate settlement placement rules (distance rule)
     if (!canBuildSettlement(game, player, args.vertexId)) {
-      throw new Error("Invalid settlement placement");
+      throw new Error(
+        `Invalid settlement placement at vertex ${args.vertexId} — violates distance rule (adjacent vertex has a building)`,
+      );
     }
 
     // Skip edge validation during setup - we'll handle it differently
@@ -140,18 +142,28 @@ export const placeSetupSettlement = mutation({
           phase: nextHumanIndex === 0 ? "setup_reverse" : game.phase,
         });
       }
-    } else if (nextPlayerIndex === 0 && game.phase === "setup_reverse") {
-      // Setup is complete, start main game
+    } else if (nextPlayerIndex === 0 && game.phase === "setup_forward") {
+      // Round 1 complete → start round 2 (reverse) with the last player
+      await ctx.db.patch(args.gameId, {
+        currentPlayerIndex: allPlayers.length - 1,
+        phase: "setup_reverse",
+      });
+    } else if (
+      nextPlayerIndex === allPlayers.length - 1 &&
+      game.phase === "setup_reverse" &&
+      args.playerIndex === 0
+    ) {
+      // Round 2 complete (player 0 just placed) → start main game
       await ctx.db.patch(args.gameId, {
         currentPlayerIndex: 0,
         phase: "roll_dice",
         turnNumber: 1,
       });
     } else {
-      // Continue setup
+      // Continue within current setup phase
       await ctx.db.patch(args.gameId, {
         currentPlayerIndex: nextPlayerIndex,
-        phase: nextPlayerIndex === 0 ? "setup_reverse" : game.phase,
+        phase: game.phase,
       });
     }
 
@@ -171,7 +183,18 @@ export const placeSetupSettlement = mutation({
 
 function canBuildSettlement(game: any, player: any, vertexId: number): boolean {
   const vertex = game.board.vertices.find((v: any) => v.id === vertexId);
-  if (!vertex || vertex.building) return false;
+  if (!vertex) {
+    console.log("canBuildSettlement FAIL: vertex not found", vertexId);
+    return false;
+  }
+  if (vertex.building) {
+    console.log(
+      "canBuildSettlement FAIL: vertex already has building",
+      vertexId,
+      vertex.building,
+    );
+    return false;
+  }
 
   // Check distance rule: no adjacent settlements
   for (const adjacentVertexId of vertex.adjacentVertices) {
@@ -179,10 +202,23 @@ function canBuildSettlement(game: any, player: any, vertexId: number): boolean {
       (v: any) => v.id === adjacentVertexId,
     );
     if (adjacentVertex && adjacentVertex.building) {
+      console.log(
+        "canBuildSettlement FAIL: adjacent vertex",
+        adjacentVertexId,
+        "has building",
+        adjacentVertex.building,
+        "owned by player",
+        adjacentVertex.ownerId,
+        "- tried to place at vertex",
+        vertexId,
+        "adjacentVertices:",
+        vertex.adjacentVertices,
+      );
       return false;
     }
   }
 
+  console.log("canBuildSettlement OK: vertex", vertexId);
   return true;
 }
 
