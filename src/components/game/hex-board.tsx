@@ -411,6 +411,17 @@ export function HexBoard({
               floodOpacity="0.4"
             />
           </filter>
+
+          {/* Water hex shadow - elevated look on table */}
+          <filter id="waterShadow" x="-15%" y="-10%" width="130%" height="130%">
+            <feDropShadow
+              dx="2"
+              dy="4"
+              stdDeviation="4"
+              floodColor="#000"
+              floodOpacity="0.45"
+            />
+          </filter>
         </defs>
 
         {/* ─── Water Hexes ─── */}
@@ -436,6 +447,7 @@ export function HexBoard({
                 stroke="#1e40af"
                 strokeWidth={2}
                 opacity={0.7}
+                filter="url(#waterShadow)"
               />
               {/* Inner hex border */}
               <polygon

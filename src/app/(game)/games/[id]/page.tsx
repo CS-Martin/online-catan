@@ -279,7 +279,36 @@ export default function GamePage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 flex flex-col overflow-hidden"
+      style={{
+        background: `
+          repeating-linear-gradient(
+            90deg,
+            transparent,
+            rgba(0,0,0,0.03) 1px,
+            transparent 2px,
+            transparent 20px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            transparent,
+            rgba(255,255,255,0.02) 3px,
+            transparent 4px,
+            transparent 40px
+          ),
+          linear-gradient(180deg, #5c3a1e 0%, #7a4f2e 15%, #8b5e3c 30%, #6b4226 50%, #7a4f2e 70%, #8b5e3c 85%, #5c3a1e 100%)
+        `,
+      }}
+    >
+      {/* Vignette overlay */}
+      <div
+        className="pointer-events-none fixed inset-0 z-1"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.5) 100%)",
+        }}
+      />
       {/* Top: Player Panels */}
       <div className="shrink-0 px-4 pt-1 pb-1">
         <PlayerPanelsBar
@@ -319,7 +348,7 @@ export default function GamePage() {
         </div>
 
         {/* Game Board */}
-        <div className="w-full max-w-[720px] h-full max-h-[560px]">
+        <div className="w-full max-w-[900px] h-full max-h-[700px]">
           <HexBoard
             hexes={game.board.hexes}
             vertices={game.board.vertices}
