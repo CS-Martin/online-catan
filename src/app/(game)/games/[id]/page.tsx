@@ -8,14 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Id } from "@convex/_generated/dataModel";
+import { toast } from "sonner";
 
 import { HexBoard } from "@/components/game/hex-board";
 import { PlayerPanelsBar } from "@/components/game/player-panel";
 import { ResourceBar } from "@/components/game/resource-bar";
 import { GameActions } from "@/components/game/game-actions";
 import { GameLogger } from "@/components/game/game-logger";
+import { DiscardDialog } from "@/components/game/discard-dialog";
+import { RobberMoveDialog } from "@/components/game/robber-move-dialog";
+import { StealResourceDialog } from "@/components/game/steal-resource-dialog";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,9 +31,9 @@ const PHASE_LABELS: Record<string, string> = {
   setup_forward: "Setup Phase (Round 1)",
   setup_reverse: "Setup Phase (Round 2)",
   roll_dice: "Roll Dice",
+  discard: "Discard Cards",
   robber_move: "Move the Robber",
   robber_steal: "Steal a Resource",
-  discard: "Discard Resources",
   trade_build: "Trade & Build",
   game_over: "Game Over!",
 };
@@ -47,6 +51,13 @@ export default function GamePage() {
     vertexId?: number;
     edgeId?: number;
   }>({});
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [playerDialogStates, setPlayerDialogStates] = useState<
+    Record<number, boolean>
+  >({});
+  const [showRobberDialog, setShowRobberDialog] = useState(false);
+  const [selectedHexId, setSelectedHexId] = useState<number | null>(null);
+  const [showStealDialog, setShowStealDialog] = useState(false);
 
   // ─── Queries ───────────────────────────────────────────────────────────────
   const game = useQuery(api.games.api.getGame, {
@@ -54,6 +65,17 @@ export default function GamePage() {
   });
   const gamePlayers = useQuery(api.games.api.getGamePlayers, {
     gameId: gameId as Id<"games">,
+  });
+
+  // Get game logs for real-time notifications
+  const gameLogs = useQuery(api.gameLogs.api.getGameLogs, {
+    gameId: gameId as Id<"games">,
+  });
+
+  console.log("Game logs updated:", {
+    count: gameLogs?.length,
+    latestAction: gameLogs?.[gameLogs.length - 1]?.action,
+    latestTimestamp: gameLogs?.[gameLogs.length - 1]?.timestamp,
   });
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
@@ -79,6 +101,85 @@ export default function GamePage() {
   })();
 
   const isMyTurn = currentUserPlayer?.playerIndex === game?.currentPlayerIndex;
+
+  // ─── Real-time Notifications ─────────────────────────────────────────────────
+  // Listen for steal events and show victim notifications
+  useEffect(() => {
+    if (!gameLogs || !currentUserPlayer) return;
+
+    console.log("Checking for theft notifications:", {
+      totalLogs: gameLogs.length,
+      currentPlayerIndex: currentUserPlayer.playerIndex,
+    });
+
+    // Check ALL logs for steal events (not just the latest)
+    const stealLogs = gameLogs.filter((log) => log.action === "steal_resource");
+    console.log("Found steal logs:", stealLogs.length, stealLogs);
+
+    // Find the most recent steal where current player is victim
+    const victimSteal = stealLogs.find(
+      (log) => log.details?.targetPlayerIndex === currentUserPlayer.playerIndex,
+    );
+
+    if (victimSteal) {
+      console.log("Current player is the victim!", victimSteal);
+
+      // This player was the victim of theft
+      const resourceEmoji: Record<string, string> = {
+        brick: "",
+        lumber: "",
+        ore: "",
+        grain: "",
+        wool: "",
+      };
+
+      const stolenResource = victimSteal.details.stolenResource;
+      const thiefPlayerIndex = victimSteal.playerIndex;
+      const thief = gamePlayers?.find(
+        (p) => p.playerIndex === thiefPlayerIndex,
+      );
+
+      toast.error(
+        `${thief?.displayName || `Player ${thiefPlayerIndex + 1}`} stole ${resourceEmoji[stolenResource]} ${stolenResource} from you!`,
+        {
+          description: "Your resources were stolen by the robber!",
+        },
+      );
+    }
+  }, [gameLogs, currentUserPlayer, gamePlayers]);
+
+  // ─── Discard Logic ─────────────────────────────────────────────────────────--
+  // Show discard dialog when in discard phase and player needs to discard
+  useEffect(() => {
+    if (game?.phase === "discard" && currentUserPlayer) {
+      const playerIndex = currentUserPlayer.playerIndex;
+      if (!playerDialogStates[playerIndex]) {
+        setPlayerDialogStates((prev) => ({ ...prev, [playerIndex]: true }));
+      }
+    }
+  }, [game?.phase, currentUserPlayer, playerDialogStates]);
+
+  // Close individual player dialogs when game moves to robber phase
+  useEffect(() => {
+    if (game?.phase === "robber_move") {
+      setPlayerDialogStates({});
+      // Show robber dialog to current player if it's their turn
+      if (isMyTurn) {
+        setShowRobberDialog(true);
+      }
+    }
+  }, [game?.phase, isMyTurn]);
+
+  // Close robber dialog when phase moves to robber_steal
+  useEffect(() => {
+    if (game?.phase === "robber_steal") {
+      setShowRobberDialog(false);
+      // Show steal dialog to current player if it's their turn
+      if (isMyTurn) {
+        setShowStealDialog(true);
+      }
+    }
+  }, [game?.phase, isMyTurn]);
 
   // Debug: Log turn state
   console.log("Turn state debug:", {
@@ -239,6 +340,29 @@ export default function GamePage() {
     ],
   );
 
+  const handleHexClick = useCallback(
+    (hexId: number) => {
+      console.log("Hex clicked:", hexId, {
+        phase: game?.phase,
+        isMyTurn,
+        showRobberDialog,
+      });
+
+      // Handle hex clicks during robber move phase
+      if (game?.phase === "robber_move" && isMyTurn && showRobberDialog) {
+        console.log("Setting selected hex ID to:", hexId);
+        // Directly update the selected hex in the dialog
+        setSelectedHexId(hexId);
+        return;
+      }
+
+      console.log("Hex click ignored - conditions not met");
+      // Handle hex clicks during other phases (if needed)
+      // For now, we don't have other hex-based interactions
+    },
+    [game, isMyTurn, showRobberDialog, selectedHexId],
+  );
+
   // ─── Loading State ─────────────────────────────────────────────────────────
 
   if (isLoading) {
@@ -372,6 +496,7 @@ export default function GamePage() {
             }
             onVertexClick={handleVertexClick}
             onEdgeClick={handleEdgeClick}
+            onHexClick={handleHexClick}
           />
         </div>
 
@@ -410,6 +535,43 @@ export default function GamePage() {
           color: p.color,
         }))}
       />
+
+      {/* Discard Dialog */}
+      {currentUserPlayer && (
+        <DiscardDialog
+          gameId={game._id}
+          playerIndex={currentUserPlayer.playerIndex}
+          isOpen={playerDialogStates[currentUserPlayer.playerIndex] || false}
+          onClose={() => {
+            setPlayerDialogStates((prev) => ({
+              ...prev,
+              [currentUserPlayer.playerIndex]: false,
+            }));
+          }}
+        />
+      )}
+
+      {/* Robber Move Dialog */}
+      {currentUserPlayer && (
+        <RobberMoveDialog
+          gameId={game._id}
+          playerIndex={currentUserPlayer.playerIndex}
+          isOpen={showRobberDialog}
+          onClose={() => setShowRobberDialog(false)}
+          selectedHexId={selectedHexId}
+          setSelectedHexId={setSelectedHexId}
+        />
+      )}
+
+      {/* Steal Resource Dialog */}
+      {currentUserPlayer && (
+        <StealResourceDialog
+          gameId={game._id}
+          playerIndex={currentUserPlayer.playerIndex}
+          isOpen={showStealDialog}
+          onClose={() => setShowStealDialog(false)}
+        />
+      )}
     </div>
   );
 }

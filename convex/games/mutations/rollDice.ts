@@ -31,7 +31,7 @@ export const rollDice = mutation({
     // Update game state
     await ctx.db.patch(args.gameId, {
       diceRoll: [die1, die2],
-      phase: rollTotal === 7 ? "robber_move" : "trade_build",
+      phase: rollTotal === 7 ? "discard" : "trade_build",
     });
 
     // Log the action

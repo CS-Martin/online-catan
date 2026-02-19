@@ -6,3 +6,4 @@ export * from "./buildSettlement";
 export * from "./placeSetupSettlement";
 export * from "./endTurn";
 export * from "./advanceTurn";
+export * from "./discardCards";

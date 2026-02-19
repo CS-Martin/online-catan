@@ -239,9 +239,9 @@ export function GameLogger({
         return "";
 
       case "steal_resource":
-        if (details.resource && details.targetPlayerIndex !== undefined) {
+        if (details.stolenResource && details.targetPlayerIndex !== undefined) {
           const targetName = getPlayerName(details.targetPlayerIndex);
-          return `${RESOURCE_EMOJI[details.resource]} from ${targetName}`;
+          return `stole 1 ${RESOURCE_EMOJI[details.stolenResource]} ${details.stolenResource} from ${targetName}`;
         }
         return "";
 

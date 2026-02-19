@@ -258,6 +258,13 @@ export function HexBoard({
 }: HexBoardProps) {
   const hexSize = 52;
 
+  console.log(
+    "HexBoard render - onHexClick:",
+    !!onHexClick,
+    "hexes count:",
+    hexes.length,
+  );
+
   // Pre-compute hex centers
   const hexCenters = useMemo(
     () => hexes.map((hex) => ({ hex, ...getHexCenter(hex, hexSize) })),
@@ -340,11 +347,18 @@ export function HexBoard({
   );
 
   return (
-    <div className="w-full h-full flex items-center justify-center select-none">
+    <div className="w-full h-full flex items-center justify-center">
       <svg
         viewBox={viewBox}
-        className="w-full h-full"
+        className="w-full h-full cursor-pointer"
         preserveAspectRatio="xMidYMid meet"
+        onClick={(e) => {
+          // Log SVG click for debugging
+          console.log("SVG clicked directly", e);
+          if (onHexClick) {
+            console.log("onHexClick is available");
+          }
+        }}
       >
         <defs>
           {/* Ocean gradient */}
@@ -491,7 +505,21 @@ export function HexBoard({
                 damping: 25,
               }}
               onClick={() => onHexClick?.(hex.id)}
-              style={{ cursor: onHexClick ? "pointer" : "default" }}
+              style={{
+                cursor: onHexClick ? "pointer" : "default",
+                pointerEvents: "auto",
+              }}
+              onMouseEnter={(e) => {
+                if (onHexClick) {
+                  console.log("Mouse entered hex:", hex.id);
+                  e.currentTarget.style.opacity = "0.8";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (onHexClick) {
+                  e.currentTarget.style.opacity = "1";
+                }
+              }}
             >
               {/* Outer hex (border/shadow) */}
               <polygon
