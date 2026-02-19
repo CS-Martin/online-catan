@@ -173,7 +173,26 @@ export const placeSetupSettlement = mutation({
       turnNumber: game.turnNumber,
       playerIndex: args.playerIndex,
       action: "place_setup_settlement",
-      details: { vertexId: args.vertexId, edgeId: args.edgeId },
+      details: {
+        vertexId: args.vertexId,
+        edgeId: args.edgeId,
+        buildingType: "settlement",
+        position: `vertex ${args.vertexId}`,
+        isSetupPhase: true,
+        phase: game.phase,
+        round: game.phase === "setup_forward" ? 1 : 2,
+        totalSettlements: player.settlementsBuilt + 1,
+        totalVictoryPoints: player.victoryPoints + 1,
+        roadsBuilt: player.roadsBuilt + (canPlaceRoad ? 1 : 0),
+        nextPlayerIndex: nextPlayerIndex,
+        nextPhase:
+          nextPlayerIndex === 0 && game.phase === "setup_forward"
+            ? "setup_reverse"
+            : nextPlayerIndex === allPlayers.length - 1 &&
+                game.phase === "setup_reverse"
+              ? "roll_dice"
+              : game.phase,
+      },
       timestamp: Date.now(),
     });
 

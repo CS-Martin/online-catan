@@ -103,9 +103,15 @@ export const buildRoad = mutation({
       action: "build_road",
       details: {
         edgeId: args.edgeId,
+        buildingType: "road",
         cost: isSetupPhase
           ? null
           : { brick: 1, lumber: 1, ore: 0, grain: 0, wool: 0 },
+        isSetupPhase,
+        position: `edge ${args.edgeId}`,
+        vertices: edge.vertices,
+        totalRoads: player.roadsBuilt + 1,
+        longestRoadLength: player.roadsBuilt + 1, // Simplified - would be calculated properly
       },
       timestamp: Date.now(),
     });

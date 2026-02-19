@@ -103,48 +103,209 @@ export default function GamePage() {
   const isMyTurn = currentUserPlayer?.playerIndex === game?.currentPlayerIndex;
 
   // ─── Real-time Notifications ─────────────────────────────────────────────────
-  // Listen for steal events and show victim notifications
+  // Listen for ALL game events and show appropriate notifications
   useEffect(() => {
     if (!gameLogs || !currentUserPlayer) return;
 
-    console.log("Checking for theft notifications:", {
-      totalLogs: gameLogs.length,
-      currentPlayerIndex: currentUserPlayer.playerIndex,
-    });
+    console.log("=== NOTIFICATION DEBUG ===");
+    console.log("Processing", gameLogs.length, "logs");
+    console.log("Current player:", currentUserPlayer.playerIndex);
 
-    // Check ALL logs for steal events (not just the latest)
-    const stealLogs = gameLogs.filter((log) => log.action === "steal_resource");
-    console.log("Found steal logs:", stealLogs.length, stealLogs);
+    // Only process the MOST RECENT log entry
+    const latestLog = gameLogs[gameLogs.length - 1];
+    if (!latestLog) return;
 
-    // Find the most recent steal where current player is victim
-    const victimSteal = stealLogs.find(
-      (log) => log.details?.targetPlayerIndex === currentUserPlayer.playerIndex,
+    console.log(
+      "Processing latest log:",
+      latestLog.action,
+      "by player:",
+      latestLog.playerIndex,
+      "current player:",
+      currentUserPlayer.playerIndex,
     );
 
-    if (victimSteal) {
-      console.log("Current player is the victim!", victimSteal);
+    const isActor = latestLog.playerIndex === currentUserPlayer.playerIndex;
+    const actor = gamePlayers?.find(
+      (p) => p.playerIndex === latestLog.playerIndex,
+    );
 
-      // This player was the victim of theft
-      const resourceEmoji: Record<string, string> = {
-        brick: "",
-        lumber: "",
-        ore: "",
-        grain: "",
-        wool: "",
-      };
+    console.log(
+      "All gamePlayers:",
+      gamePlayers?.map((p) => ({
+        index: p.playerIndex,
+        name: p.displayName,
+        isAI: p.isAI,
+      })),
+    );
+    console.log(
+      "Is actor:",
+      isActor,
+      "Actor name:",
+      actor?.displayName,
+      "Actor index:",
+      actor?.playerIndex,
+    );
 
-      const stolenResource = victimSteal.details.stolenResource;
-      const thiefPlayerIndex = victimSteal.playerIndex;
-      const thief = gamePlayers?.find(
-        (p) => p.playerIndex === thiefPlayerIndex,
-      );
+    // Resource emoji mapping
+    const RESOURCE_EMOJI: Record<string, string> = {
+      brick: "🧱",
+      lumber: "🪵",
+      ore: "⛏️",
+      grain: "🌾",
+      wool: "🐑",
+    };
 
-      toast.error(
-        `${thief?.displayName || `Player ${thiefPlayerIndex + 1}`} stole ${resourceEmoji[stolenResource]} ${stolenResource} from you!`,
-        {
-          description: "Your resources were stolen by the robber!",
-        },
-      );
+    // Handle different action types
+    const getNotificationMessage = (
+      action: string,
+      details: any,
+      playerIndex: number,
+    ) => {
+      switch (action) {
+        case "roll_dice":
+          if (Array.isArray(details?.diceRoll)) {
+            const total = details.diceRoll.reduce(
+              (a: number, b: number) => a + b,
+              0,
+            );
+            return isActor
+              ? `You rolled ${total} (${details.diceRoll.join(" + ")})`
+              : `${actor?.displayName || `Player ${playerIndex + 1}`} rolled ${total}`;
+          }
+          return "";
+
+        case "build_settlement":
+        case "place_setup_settlement":
+          const position = details?.position || `vertex ${details?.vertexId}`;
+          const totalVPs = details?.totalVictoryPoints || 1;
+          return isActor
+            ? `You have created a settlement on ${position} (+${totalVPs} VP)`
+            : `${actor?.displayName || `Player ${playerIndex + 1}`} has created a settlement on ${position} (+${totalVPs} VP)`;
+
+        case "build_road":
+        case "place_setup_road":
+          const roadPosition = details?.position || `edge ${details?.edgeId}`;
+          return isActor
+            ? `You have created a road on ${roadPosition}`
+            : `${actor?.displayName || `Player ${playerIndex + 1}`} has created a road on ${roadPosition}`;
+
+        case "build_city":
+          return isActor
+            ? "You have created a city"
+            : `${actor?.displayName || `Player ${playerIndex + 1}`} has created a city`;
+
+        case "move_robber":
+          return isActor
+            ? "You have moved the robber"
+            : `${actor?.displayName || `Player ${playerIndex + 1}`} has moved the robber`;
+
+        case "steal_resource":
+          if (
+            details?.stolenResource &&
+            details?.targetPlayerIndex === currentUserPlayer.playerIndex
+          ) {
+            // Victim notification
+            return `${actor?.displayName || `Player ${playerIndex + 1}`} has stolen ${RESOURCE_EMOJI[details.stolenResource]} ${details.stolenResource} from you!`;
+          } else if (isActor) {
+            // Actor notification
+            const targetPlayer = gamePlayers?.find(
+              (p) => p.playerIndex === details.targetPlayerIndex,
+            );
+            return `You have stolen ${RESOURCE_EMOJI[details.stolenResource]} ${details.stolenResource} from ${targetPlayer?.displayName || `Player ${details.targetPlayerIndex + 1}`}!`;
+          }
+          return `${actor?.displayName || `Player ${playerIndex + 1}`} has stolen ${RESOURCE_EMOJI[details.stolenResource]} ${details.stolenResource}`;
+
+        case "discard_resources":
+          return isActor
+            ? "You have discarded resources"
+            : `${actor?.displayName || `Player ${playerIndex + 1}`} has discarded resources`;
+
+        case "gain_resources":
+          if (details?.resources) {
+            const resources = Object.entries(details.resources)
+              .filter(([_, amount]) => Number(amount) > 0)
+              .map(
+                ([resource, amount]) => `${RESOURCE_EMOJI[resource]}${amount}`,
+              )
+              .join(" ");
+            return isActor
+              ? `You have received ${resources}`
+              : `${actor?.displayName || `Player ${playerIndex + 1}`} has received ${resources}`;
+          }
+          return "";
+
+        case "end_turn":
+          return isActor
+            ? "You have ended your turn"
+            : `${actor?.displayName || `Player ${playerIndex + 1}`} has ended their turn`;
+
+        case "advanceTurn":
+          return isActor
+            ? "You have advanced your turn"
+            : `${actor?.displayName || `Player ${playerIndex + 1}`} has advanced their turn`;
+
+        default:
+          // Handle unknown actions with descriptive messages
+          const actionDescriptions: Record<string, string> = {
+            place_setup_settlement: "created a settlement",
+            place_setup_road: "created a road",
+            build_settlement: "created a settlement",
+            build_road: "created a road",
+            build_city: "created a city",
+            move_robber: "moved the robber",
+            steal_resource: "stolen a resource",
+            discard_resources: "discarded resources",
+            gain_resources: "received resources",
+            end_turn: "ended their turn",
+            roll_dice: "rolled the dice",
+            advanceTurn: "advanced the turn",
+          };
+
+          const actionDesc = actionDescriptions[action] || action;
+          return `${actor?.displayName || `Player ${playerIndex + 1}`} has ${actionDesc}`;
+      }
+    };
+
+    const message = getNotificationMessage(
+      latestLog.action,
+      latestLog.details,
+      latestLog.playerIndex,
+    );
+    console.log("=== TOAST DEBUG ===");
+    console.log(
+      "Message:",
+      message,
+      "for player:",
+      latestLog.playerIndex,
+      "isActor:",
+      isActor,
+    );
+
+    if (!message) return;
+
+    // Show appropriate toast based on action and whether user is actor
+    if (
+      latestLog.action === "steal_resource" &&
+      latestLog.details?.targetPlayerIndex === currentUserPlayer.playerIndex
+    ) {
+      // Victim gets error toast
+      toast.error(message, {
+        description: "Your resources were stolen by the robber!",
+      });
+    } else if (
+      latestLog.action === "roll_dice" &&
+      latestLog.details?.diceRoll?.includes(7)
+    ) {
+      // Rolling a 7 gets warning toast (robber time!)
+      toast.warning(message, {
+        description: "Robber time! Move the robber and steal resources!",
+      });
+    } else if (isActor) {
+      // Actor gets success toast
+      toast.success(message);
+    } else {
+      // Other players get info toast
+      toast.info(message);
     }
   }, [gameLogs, currentUserPlayer, gamePlayers]);
 

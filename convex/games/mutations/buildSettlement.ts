@@ -106,9 +106,15 @@ export const buildSettlement = mutation({
       action: "build_settlement",
       details: {
         vertexId: args.vertexId,
+        buildingType: "settlement",
         cost: isSetupPhase
           ? null
           : { brick: 1, lumber: 1, ore: 0, grain: 1, wool: 1 },
+        isSetupPhase,
+        victoryPoints: 1,
+        position: `vertex ${args.vertexId}`,
+        totalSettlements: player.settlementsBuilt + 1,
+        totalVictoryPoints: player.victoryPoints + 1,
       },
       timestamp: Date.now(),
     });
